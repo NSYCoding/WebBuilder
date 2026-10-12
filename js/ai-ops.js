@@ -33,7 +33,7 @@
     set(project, op) {
       const section = project.sections[findIndex(project, op.id)];
       if (!section) throw new Error(`no section "${op.id}"`);
-      if (!WB.content.setPath(section, String(op.path), op.value)) throw new Error(`cannot set ${op.path}`);
+      if (!WB.content.setPath(section, String(op.path).replace(/^data\./, ''), op.value)) throw new Error(`cannot set ${op.path}`);
       return `Edited ${sectionName(section)}`;
     },
 

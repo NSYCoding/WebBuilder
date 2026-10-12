@@ -19,16 +19,29 @@ npm start
 - Undo / redo (Ctrl+Z, Ctrl+Shift+Z) for structural and AI changes
 - Autosaves to IndexedDB; Export HTML (one standalone file), Save / Open project (`.wbproj`)
 
-**AI assistant** (✨ AI tab)
+**AI assistant** (✨ AI tab, runs locally with [Ollama](https://ollama.com))
 - Chat: "make the menu more appetizing", "switch to a dark look", "add a reservations section"
 - Generate a whole site from a restaurant name and cuisine
 - Select a section in the preview, then tell the assistant what to change about it
-- Bring your own Anthropic API key (stored encrypted via Electron `safeStorage`, used only in the main process). Pick Claude Opus / Sonnet / Haiku 5.5 in the AI tab.
+- Two local models: an **LLM** that writes the edits and an **embedding model** that finds the parts of your site relevant to each request (retrieval keeps the prompt small enough for local models). Nothing leaves your machine.
 - Every AI change is one undoable step, and the model never touches the project directly (see below)
 
-## How the AI edits are kept safe
+### Setting up the assistant
 
-Claude answers by calling one tool, `edit_site`, with a list of operations (`set`, `add_section`, `set_theme`, ...). The editor applies them to a **copy** of the project through `js/ai-ops.js`, which treats the output as untrusted: unknown operations, bad ids, invalid colours/fonts and unknown fields are dropped and reported, and images are never set by AI. Only if something valid remains is it committed as one undoable step.
+```
+ollama serve                    # if Ollama is not already running
+ollama pull llama3.1:8b         # language model (any chat model works; larger = better)
+ollama pull nomic-embed-text    # embedding model
+```
+
+The AI tab detects installed models and lets you pick one of each, or point to a different Ollama address.
+
+## How the AI edits work
+
+1. The project is split into small addressable chunks (site details, each section, each dish / review / hours row).
+2. The embedding model ranks the chunks against your request; the best ones (plus an outline of all sections and the selected section) go into the prompt. Chunk embeddings are cached, so only changed text is re-embedded.
+3. The LLM replies with JSON: a short message and a list of operations (`set`, `add_section`, `set_theme`, ...).
+4. The editor applies the operations to a **copy** of the project through `js/ai-ops.js`, which treats the output as untrusted: unknown operations, bad ids, invalid colours/fonts and unknown fields are dropped and reported, and images are never set by AI. Only if something valid remains is it committed as one undoable step.
 
 ## Code layout
 
@@ -40,12 +53,12 @@ Plain browser scripts (no bundler); each file attaches to a shared `window.WB` n
 | `preload.js` | Sandboxed IPC bridge exposed as `window.desktop` |
 | `js/schema.js` | Section definitions; drive the forms and defaults for new sections |
 | `js/presets.js` | Starter templates |
-| `ai.js` | Main process: API key storage, the Claude request, the `edit_site` tool |
+| `ai.js` | Main process: Ollama client, embedding retrieval, prompt, streaming |
 | `js/site-assets.js` | CSS and scripts embedded into every generated site |
 | `js/canvas-assets.js` | Editor-only CSS/script injected into the preview (inline editing, toolbar, selection) |
-| `js/content.js` | Schema-validated reads/writes of section content (shared by canvas edits and AI) |
+| `js/content.js` | Schema-validated reads/writes of section content; chunking for retrieval |
 | `js/ai-ops.js` | Validates and applies the operations the model returns |
-| `js/ai-panel.js` | The AI tab: chat, generator, key and model settings |
+| `js/ai-panel.js` | The AI tab: chat, generator, Ollama setup and model settings |
 | `js/renderer.js` | Project -> standalone HTML (all user content is escaped/sanitised here) |
 | `js/dom.js` | `h()` element helper |
 | `js/db.js` | Promise wrapper around IndexedDB |
