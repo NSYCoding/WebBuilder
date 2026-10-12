@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
+const { registerAiHandlers } = require('./ai');
 
 let win;
 
@@ -62,6 +63,7 @@ ipcMain.handle('shell:preview', async (_e, html) => {
 });
 
 app.whenReady().then(() => {
+  registerAiHandlers();
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { role: 'appMenu' }, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' },
   ].filter((m) => process.platform === 'darwin' || m.role !== 'appMenu')));

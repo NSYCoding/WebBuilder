@@ -5,6 +5,7 @@
 (function (WB) {
   const { h, $, store } = WB;
   const TOAST_DURATION_MS = 2200;
+  const CANVAS_REFRESH_DELAY_MS = 400;
 
   function toast(message) {
     const el = $('#toast');
@@ -79,6 +80,64 @@
     $('#btn-templates').onclick = () => dialog.showModal();
   }
 
+  /* ---------- canvas (the live preview) ---------- */
+
+  function onCanvasSelect(id) {
+    // While chatting with the assistant, clicking a section sets what you are talking about.
+    if (WB.panels.tab === 'ai') WB.aiPanel.focusSection(id);
+    else WB.panels.focusSection(id);
+  }
+
+  function onCanvasAction({ type, id }) {
+    switch (type) {
+      case 'up': store.moveSection(id, -1); break;
+      case 'down': store.moveSection(id, 1); break;
+      case 'toggle': store.toggleSection(id); break;
+      case 'delete':
+        if (confirm('Delete this section?')) store.removeSection(id);
+        break;
+      case 'ai':
+        WB.panels.show('ai');
+        WB.aiPanel.focusSection(id);
+        break;
+      case 'add': WB.panels.focusAddSection(); break;
+      default: break;
+    }
+  }
+
+  /** Keep the side panel in step with changes it did not make itself. */
+  function wirePanelRefresh() {
+    let timer;
+    store.subscribe((_project, meta) => {
+      if (meta.structure) WB.panels.refresh();
+      else if (meta.canvas) { // typing in the preview: refresh once typing pauses
+        clearTimeout(timer);
+        timer = setTimeout(() => WB.panels.refresh(), CANVAS_REFRESH_DELAY_MS);
+      }
+    });
+  }
+
+  /* ---------- undo / redo ---------- */
+
+  const isTextTarget = (el) => el.closest('input, textarea, select, [contenteditable]');
+
+  function wireHistory() {
+    const undo = $('#btn-undo');
+    const redo = $('#btn-redo');
+    const sync = () => { undo.disabled = !store.canUndo; redo.disabled = !store.canRedo; };
+    undo.onclick = () => store.undo();
+    redo.onclick = () => store.redo();
+    store.onHistory(sync);
+    sync();
+
+    // Inside text fields the browser's own undo applies; elsewhere Ctrl/Cmd+Z undoes site changes.
+    document.addEventListener('keydown', (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z' || isTextTarget(event.target)) return;
+      event.preventDefault();
+      if (event.shiftKey) store.redo(); else store.undo();
+    });
+  }
+
   /* ---------- tabs, devices, status ---------- */
 
   function wirePanelsAndDevices() {
@@ -106,7 +165,9 @@
     wireTemplates();
     wirePanelsAndDevices();
     wireStatus();
-    WB.preview.init($('#preview'));
+    wireHistory();
+    wirePanelRefresh();
+    WB.preview.init($('#preview'), { onSelect: onCanvasSelect, onAction: onCanvasAction });
     WB.panels.show('sections');
   }
 

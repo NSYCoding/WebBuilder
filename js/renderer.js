@@ -5,7 +5,7 @@
  * `safeLink` (hrefs) so a project file can never inject markup or script.
  */
 (function (WB) {
-  const { CSS, SITE_SCRIPT, PREVIEW_SCRIPT } = WB.siteAssets;
+  const { CSS, SITE_SCRIPT } = WB.siteAssets;
 
   /* ---------------- Sanitising helpers ---------------- */
 
@@ -59,16 +59,27 @@
 
   /* ---------------- Section renderers ---------------- */
   // Each takes (section, context) and returns an HTML string.
-  // context = { sections: enabled sections, in order }
+  // context = { sections: enabled sections in order, preview: boolean }
+  //
+  // In preview mode, editable text gets a data-wb="<sectionId>:<path>" attribute
+  // (plus data-multi for multi-line fields) so the canvas can edit it inline.
+  // Exported sites never contain these attributes.
+
+  /** data-wb attribute string for an inline-editable value (empty outside preview). */
+  const editable = (ctx, section, path, { multi = false } = {}) =>
+    ctx.preview ? ` data-wb="${esc(section.id)}:${esc(path)}"${multi ? ' data-multi' : ''}` : '';
+
+  /** Multi-line text: <br>s in exports, raw text (pre-wrapped by the canvas) in preview. */
+  const multiline = (ctx, text) => (ctx.preview ? esc(text) : withBreaks(text));
 
   const sectionRenderers = {
-    hero(section, { sections }) {
+    hero(section, ctx) {
       const { data } = section;
       // The button goes to the chosen section, else the menu, else reservations.
       const target =
-        sections.find((s) => s.id === data.ctaTarget) ||
-        sections.find((s) => s.type === 'menu') ||
-        sections.find((s) => s.type === 'reservations');
+        ctx.sections.find((s) => s.id === data.ctaTarget) ||
+        ctx.sections.find((s) => s.type === 'menu') ||
+        ctx.sections.find((s) => s.type === 'reservations');
       const layout = data.layout === 'left' ? 'left' : 'center';
       const background = imageTag(data.image, '', 'hero-bg') || '<div class="hero-bg hero-bg--grad"></div>';
 
@@ -77,112 +88,120 @@
   ${background}
   <div class="hero-shade"></div>
   <div class="container hero-inner">
-    <h1>${esc(data.heading)}</h1>
-    ${data.subheading ? `<p class="lead">${withBreaks(data.subheading)}</p>` : ''}
-    ${data.ctaText && target ? `<a class="btn" href="#${sectionId(target)}">${esc(data.ctaText)}</a>` : ''}
+    <h1${editable(ctx, section, 'heading')}>${esc(data.heading)}</h1>
+    ${data.subheading ? `<p class="lead"${editable(ctx, section, 'subheading', { multi: true })}>${multiline(ctx, data.subheading)}</p>` : ''}
+    ${data.ctaText && target ? `<a class="btn" href="#${sectionId(target)}"${editable(ctx, section, 'ctaText')}>${esc(data.ctaText)}</a>` : ''}
   </div>
 </header>`;
     },
 
-    about(section) {
+    about(section, ctx) {
       const { data } = section;
       const image = imageTag(data.image, data.title, 'about-img');
+      // Preview edits the story as one block of text; exports split it into <p> tags.
+      const story = ctx.preview
+        ? `<div${editable(ctx, section, 'text', { multi: true })}>${esc(data.text)}</div>`
+        : paragraphs(data.text);
       return `
 <section class="section" id="${sectionId(section)}">
   <div class="container ${image ? 'split' : 'narrow'}">
-    <div><h2>${esc(data.title)}</h2>${paragraphs(data.text)}</div>
+    <div><h2${editable(ctx, section, 'title')}>${esc(data.title)}</h2>${story}</div>
     ${image}
   </div>
 </section>`;
     },
 
-    menu(section) {
+    menu(section, ctx) {
       const { data } = section;
 
-      const renderDish = (dish) => `
+      const renderDish = (dish, c, d) => {
+        const base = `categories.${c}.items.${d}`;
+        return `
       <div class="dish">
         <div class="dish-top">
-          <span class="dish-name">${esc(dish.name)}${dish.tag ? `<em class="tag">${esc(dish.tag)}</em>` : ''}</span>
+          <span class="dish-name"><span${editable(ctx, section, `${base}.name`)}>${esc(dish.name)}</span>${dish.tag ? `<em class="tag"${editable(ctx, section, `${base}.tag`)}>${esc(dish.tag)}</em>` : ''}</span>
           <span class="dish-line"></span>
-          <span class="dish-price">${esc(dish.price)}</span>
+          <span class="dish-price"${editable(ctx, section, `${base}.price`)}>${esc(dish.price)}</span>
         </div>
-        ${dish.desc ? `<p class="dish-desc">${esc(dish.desc)}</p>` : ''}
+        ${dish.desc ? `<p class="dish-desc"${editable(ctx, section, `${base}.desc`, { multi: true })}>${multiline(ctx, dish.desc)}</p>` : ''}
       </div>`;
+      };
 
-      const renderCategory = (category) => `
+      const renderCategory = (category, c) => `
     <div class="menu-cat">
-      <h3>${esc(category.name)}</h3>
-      ${(category.items || []).map(renderDish).join('')}
+      <h3${editable(ctx, section, `categories.${c}.name`)}>${esc(category.name)}</h3>
+      ${(category.items || []).map((dish, d) => renderDish(dish, c, d)).join('')}
     </div>`;
 
       return `
 <section class="section alt" id="${sectionId(section)}">
   <div class="container">
     <div class="section-head">
-      <h2>${esc(data.title)}</h2>
-      ${data.intro ? `<p class="lead">${withBreaks(data.intro)}</p>` : ''}
+      <h2${editable(ctx, section, 'title')}>${esc(data.title)}</h2>
+      ${data.intro ? `<p class="lead"${editable(ctx, section, 'intro', { multi: true })}>${multiline(ctx, data.intro)}</p>` : ''}
     </div>
     <div class="menu-grid">${(data.categories || []).map(renderCategory).join('')}</div>
   </div>
 </section>`;
     },
 
-    gallery(section) {
+    gallery(section, ctx) {
       const { data } = section;
-      const renderPhoto = (photo) => `
+      const renderPhoto = (photo, i) => `
       <figure class="g-item">
         ${imageTag(photo.url, photo.caption, 'g-img') || '<div class="g-ph">🍽️</div>'}
-        ${photo.caption ? `<figcaption>${esc(photo.caption)}</figcaption>` : ''}
+        ${photo.caption ? `<figcaption${editable(ctx, section, `images.${i}.caption`)}>${esc(photo.caption)}</figcaption>` : ''}
       </figure>`;
 
       return `
 <section class="section" id="${sectionId(section)}">
   <div class="container">
-    <div class="section-head"><h2>${esc(data.title)}</h2></div>
+    <div class="section-head"><h2${editable(ctx, section, 'title')}>${esc(data.title)}</h2></div>
     <div class="gallery">${(data.images || []).map(renderPhoto).join('')}</div>
   </div>
 </section>`;
     },
 
-    testimonials(section) {
+    testimonials(section, ctx) {
       const { data } = section;
-      const renderQuote = (review) => `
+      const renderQuote = (review, i) => `
       <blockquote class="card">
-        <p>“${esc(review.quote)}”</p>
-        <footer>— ${esc(review.author)}</footer>
+        <p>“<span${editable(ctx, section, `items.${i}.quote`, { multi: true })}>${multiline(ctx, review.quote)}</span>”</p>
+        <footer>— <span${editable(ctx, section, `items.${i}.author`)}>${esc(review.author)}</span></footer>
       </blockquote>`;
 
       return `
 <section class="section alt" id="${sectionId(section)}">
   <div class="container">
-    <div class="section-head"><h2>${esc(data.title)}</h2></div>
+    <div class="section-head"><h2${editable(ctx, section, 'title')}>${esc(data.title)}</h2></div>
     <div class="quotes">${(data.items || []).map(renderQuote).join('')}</div>
   </div>
 </section>`;
     },
 
-    hours(section) {
+    hours(section, ctx) {
       const { data } = section;
-      const rows = (data.rows || []).map((row) => `<tr><th>${esc(row.day)}</th><td>${esc(row.time)}</td></tr>`).join('');
+      const rows = (data.rows || []).map((row, i) =>
+        `<tr><th${editable(ctx, section, `rows.${i}.day`)}>${esc(row.day)}</th><td${editable(ctx, section, `rows.${i}.time`)}>${esc(row.time)}</td></tr>`).join('');
       return `
 <section class="section" id="${sectionId(section)}">
   <div class="container narrow">
-    <div class="section-head"><h2>${esc(data.title)}</h2></div>
+    <div class="section-head"><h2${editable(ctx, section, 'title')}>${esc(data.title)}</h2></div>
     <table class="hours">${rows}</table>
-    ${data.note ? `<p class="note">${esc(data.note)}</p>` : ''}
+    ${data.note ? `<p class="note"${editable(ctx, section, 'note')}>${esc(data.note)}</p>` : ''}
   </div>
 </section>`;
     },
 
     // Front-end only: the form shows a confirmation and sends nothing (see SITE_SCRIPT).
-    reservations(section) {
+    reservations(section, ctx) {
       const { data } = section;
       return `
 <section class="section alt" id="${sectionId(section)}">
   <div class="container narrow">
     <div class="section-head">
-      <h2>${esc(data.title)}</h2>
-      ${data.text ? `<p class="lead">${withBreaks(data.text)}</p>` : ''}
+      <h2${editable(ctx, section, 'title')}>${esc(data.title)}</h2>
+      ${data.text ? `<p class="lead"${editable(ctx, section, 'text', { multi: true })}>${multiline(ctx, data.text)}</p>` : ''}
     </div>
     <form class="resv card" data-success="${esc(data.success)}">
       <label>Name<input name="name" required></label>
@@ -199,12 +218,13 @@
 </section>`;
     },
 
-    contact(section) {
+    contact(section, ctx) {
       const { data } = section;
       const phoneHref = esc(String(data.phone || '').replace(/[^\d+]/g, ''));
 
+      // Phone and email are links, so they are edited in the side panel, not inline.
       const details = [
-        data.address && `<div><h3>Address</h3><p>${withBreaks(data.address)}</p></div>`,
+        data.address && `<div><h3>Address</h3><p${editable(ctx, section, 'address', { multi: true })}>${multiline(ctx, data.address)}</p></div>`,
         data.phone && `<div><h3>Phone</h3><p><a href="tel:${phoneHref}">${esc(data.phone)}</a></p></div>`,
         data.email && `<div><h3>Email</h3><p><a href="mailto:${esc(data.email)}">${esc(data.email)}</a></p></div>`,
       ].filter(Boolean).join('');
@@ -217,13 +237,17 @@
       return `
 <section class="section" id="${sectionId(section)}">
   <div class="container">
-    <div class="section-head"><h2>${esc(data.title)}</h2></div>
+    <div class="section-head"><h2${editable(ctx, section, 'title')}>${esc(data.title)}</h2></div>
     <div class="contact-grid">${details}</div>
     ${socialLinks ? `<div class="social">${socialLinks}</div>` : ''}
   </div>
 </section>`;
     },
   };
+
+  /** In preview, tag a section's root element so the canvas can select it. */
+  const markSection = (html, section, preview) =>
+    (preview ? html.replace(/^\s*<(header|section) /, `<$1 data-wb-section="${esc(section.id)}" `) : html);
 
   /* ---------------- Document ---------------- */
 
@@ -261,13 +285,15 @@
   function render(project, { preview = false } = {}) {
     const { site, theme } = project;
     const sections = project.sections.filter((s) => s.enabled);
-    const context = { sections };
+    const context = { sections, preview };
 
     const navLinks = sections
       .filter((s) => WB.SCHEMA[s.type].nav !== false)
       .map((s) => `<li><a href="#${sectionId(s)}">${esc(sectionLabel(s))}</a></li>`)
       .join('');
-    const body = sections.map((s) => sectionRenderers[s.type](s, context)).join('\n');
+    const body = sections
+      .map((s) => markSection(sectionRenderers[s.type](s, context), s, preview))
+      .join('\n');
 
     return `<!doctype html>
 <html lang="en">
@@ -282,19 +308,20 @@
 <style>
 ${themeVariables(theme)}
 ${CSS}
+${preview ? WB.canvasAssets.CSS : ''}
 </style>
 </head>
 <body>
 <nav class="nav">
   <div class="container">
-    <a class="brand" href="#">${esc(site.logo)} ${esc(site.name)}</a>
+    <a class="brand" href="#">${esc(site.logo)} <span${preview ? ' data-wb="site:name"' : ''}>${esc(site.name)}</span></a>
     <button class="burger" aria-label="Menu">☰</button>
     <ul>${navLinks}</ul>
   </div>
 </nav>
 ${body}
-<footer class="site"><div class="container">${esc(site.footer)}</div></footer>
-<script>${SITE_SCRIPT}${preview ? PREVIEW_SCRIPT : ''}</script>
+<footer class="site"><div class="container"><span${preview ? ' data-wb="site:footer"' : ''}>${esc(site.footer)}</span></div></footer>
+<script>${SITE_SCRIPT}${preview ? WB.canvasAssets.SCRIPT : ''}</script>
 </body>
 </html>`;
   }

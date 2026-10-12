@@ -11,6 +11,8 @@
     <header class="top">
       <div class="logo">🍴 WebBuilder</div>
       <div class="top-actions">
+        <button id="btn-undo" class="ghost" title="Undo (Ctrl+Z)">↶</button>
+        <button id="btn-redo" class="ghost" title="Redo (Ctrl+Shift+Z)">↷</button>
         <button id="btn-templates" class="ghost">Templates</button>
         <button id="btn-open" class="ghost">Open…</button>
         <button id="btn-save" class="ghost">Save project</button>
@@ -20,6 +22,7 @@
     </header>
     <aside class="panel">
       <nav class="tabs" id="tabs">
+        <button data-tab="ai" class="ai-tab">✨ AI</button>
         <button data-tab="sections" class="on">Sections</button>
         <button data-tab="design">Design</button>
         <button data-tab="site">Site</button>
@@ -46,13 +49,17 @@
   <script src="js/schema.js"></script>
   <script src="js/presets.js"></script>
   <script src="js/site-assets.js"></script>
+  <script src="js/canvas-assets.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/dom.js"></script>
   <script src="js/db.js"></script>
   <script src="js/store.js"></script>
+  <script src="js/content.js"></script>
+  <script src="js/ai-ops.js"></script>
   <script src="js/preview.js"></script>
   <script src="js/fields.js"></script>
   <script src="js/panels.js"></script>
+  <script src="js/ai-panel.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

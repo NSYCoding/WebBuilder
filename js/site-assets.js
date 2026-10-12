@@ -176,25 +176,5 @@ footer.site { padding: 32px 0; text-align: center; font-size: 0.9rem; opacity: 0
   });
 })();`;
 
-  /** Only added to the editor preview: lets the editor scroll and restore the page. See preview.js. */
-  const PREVIEW_SCRIPT = `
-(function () {
-  window.addEventListener('message', function (e) {
-    var msg = e.data || {};
-    if (msg.scrollToId) {
-      var el = document.getElementById(msg.scrollToId);
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    }
-    if (typeof msg.scrollY === 'number') window.scrollTo(0, msg.scrollY);
-  });
-
-  var timer;
-  window.addEventListener('scroll', function () {
-    clearTimeout(timer);
-    timer = setTimeout(function () { parent.postMessage({ wbScrollY: window.scrollY }, '*'); }, 80);
-  });
-  parent.postMessage({ wbReady: true }, '*');
-})();`;
-
-  WB.siteAssets = { CSS, SITE_SCRIPT, PREVIEW_SCRIPT };
+  WB.siteAssets = { CSS, SITE_SCRIPT };
 })(window.WB);

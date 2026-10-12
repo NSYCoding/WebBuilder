@@ -12,40 +12,33 @@
 
   const cardTitle = (section) => `${SCHEMA[section.type].icon} ${WB.sectionLabel(section)}`;
 
-  function sectionCard(section, index) {
+  function sectionCard(section) {
     const schema = SCHEMA[section.type];
-    const sections = store.project.sections;
     const title = h('span', { class: 't' }, cardTitle(section));
     const refreshTitle = () => { title.textContent = cardTitle(section); };
     const onFieldChange = () => { refreshTitle(); store.touch(); };
 
-    /** Wrap a structural change: stop the <summary> toggling, apply, redraw the tab. */
+    /** Wrap a store change so the click does not also toggle the <details>. */
     const action = (apply) => (event) => {
       event.preventDefault();
       event.stopPropagation();
       apply();
-      store.touch();
-      renderSections();
-    };
-    const moveBy = (delta) => () => {
-      const target = index + delta;
-      if (target >= 0 && target < sections.length) [sections[index], sections[target]] = [sections[target], sections[index]];
     };
     const remove = () => {
-      if (confirm(`Delete the ${schema.label} section?`)) sections.splice(index, 1);
+      if (confirm(`Delete the ${schema.label} section?`)) store.removeSection(section.id);
     };
 
-    const details = h('details', { class: section.enabled ? 'sec' : 'sec off' },
+    const details = h('details', { class: section.enabled ? 'sec' : 'sec off', 'data-section-id': section.id },
       h('summary', {},
         title,
         h('span', { class: 'btns' },
           h('button', {
             class: 'icon',
             title: section.enabled ? 'Hide section' : 'Show section',
-            onclick: action(() => { section.enabled = !section.enabled; }),
+            onclick: action(() => store.toggleSection(section.id)),
           }, section.enabled ? '👁' : '🚫'),
-          h('button', { class: 'icon', title: 'Move up', onclick: action(moveBy(-1)) }, '↑'),
-          h('button', { class: 'icon', title: 'Move down', onclick: action(moveBy(1)) }, '↓'),
+          h('button', { class: 'icon', title: 'Move up', onclick: action(() => store.moveSection(section.id, -1)) }, '↑'),
+          h('button', { class: 'icon', title: 'Move down', onclick: action(() => store.moveSection(section.id, 1)) }, '↓'),
           h('button', { class: 'icon danger', title: 'Delete section', onclick: action(remove) }, '✕'))),
       h('div', { class: 'details-body' },
         fieldsEl(schema.fields, section.data, onFieldChange),
@@ -61,17 +54,15 @@
   }
 
   function addSectionPicker() {
-    const select = h('select', {},
+    const select = h('select', { id: 'add-section' },
       h('option', { value: '' }, '+ Add section…'),
       Object.entries(SCHEMA).map(([type, schema]) => h('option', { value: type }, `${schema.icon} ${schema.label}`)));
 
     select.addEventListener('change', () => {
       if (!select.value) return;
       const section = WB.newSection(select.value);
-      markOpen(section);
-      store.project.sections.push(section);
-      store.touch();
-      renderSections();
+      markOpen(section); // before the store notifies, so the redraw shows it expanded
+      store.mutate((project) => { project.sections.push(section); });
       WB.preview.scrollToSection(WB.sectionId(section));
     });
     return h('div', { class: 'field' }, select);
@@ -129,15 +120,47 @@
 
   /* ---------------- Tabs ---------------- */
 
-  const RENDERERS = { sections: renderSections, design: renderDesign, site: renderSite };
+  const RENDERERS = {
+    sections: renderSections,
+    design: renderDesign,
+    site: renderSite,
+    ai: () => WB.aiPanel.render(panelBody()),
+  };
+  let currentTab = 'sections';
 
   WB.panels = {
-    /** @param {'sections'|'design'|'site'} tab */
+    get tab() { return currentTab; },
+
+    /** @param {'sections'|'design'|'site'|'ai'} tab */
     show(tab) {
+      currentTab = tab;
       document.querySelectorAll('#tabs button').forEach((button) => {
         button.classList.toggle('on', button.dataset.tab === tab);
       });
       RENDERERS[tab]();
+    },
+
+    /** Redraw the current tab after the project changed from outside the forms. */
+    refresh() {
+      if (currentTab !== 'ai') RENDERERS[currentTab](); // the chat keeps its own state
+    },
+
+    /** Switch to the Sections tab with one section expanded and scrolled into view. */
+    focusSection(id) {
+      const section = store.findSection(id);
+      if (!section) return;
+      markOpen(section);
+      this.show('sections');
+      const card = panelBody().querySelector(`[data-section-id="${CSS.escape(id)}"]`);
+      if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    },
+
+    /** Switch to the Sections tab and open the "add section" menu. */
+    focusAddSection() {
+      this.show('sections');
+      const picker = $('#add-section');
+      picker.scrollIntoView({ block: 'nearest' });
+      picker.focus();
     },
   };
 })(window.WB);
