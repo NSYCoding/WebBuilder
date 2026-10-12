@@ -9,6 +9,8 @@ npm install
 npm start
 ```
 
+Run it as a normal user. Electron refuses to start as root ("Running as root without --no-sandbox is not supported"). If you must run as root (for example in a container), use `npm run start:no-sandbox`, which turns off Chromium's sandbox.
+
 ## Features
 
 **Visual editor**
