@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WebBuilder</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="logo">🍴 WebBuilder</div>
+      <div class="top-actions">
+        <button id="btn-templates" class="ghost">Templates</button>
+        <button id="btn-open" class="ghost">Open…</button>
+        <button id="btn-save" class="ghost">Save project</button>
+        <button id="btn-browser" class="ghost">Preview in browser</button>
+        <button id="btn-export" class="primary">Export HTML</button>
+      </div>
+    </header>
+    <aside class="panel">
+      <nav class="tabs" id="tabs">
+        <button data-tab="sections" class="on">Sections</button>
+        <button data-tab="design">Design</button>
+        <button data-tab="site">Site</button>
+      </nav>
+      <div class="panel-body" id="panel-body"></div>
+    </aside>
+    <main class="stage">
+      <div class="devices" id="devices">
+        <button data-w="100%" class="on" title="Desktop">🖥️</button>
+        <button data-w="820px" title="Tablet">📱</button>
+        <button data-w="390px" title="Mobile">📲</button>
+        <span id="status"></span>
+      </div>
+      <div class="frame-wrap"><iframe id="preview" sandbox="allow-scripts" title="Preview"></iframe></div>
+    </main>
+  </div>
+  <dialog id="templates-dialog">
+    <h2>Start from a template</h2>
+    <p class="muted">This replaces your current site.</p>
+    <div class="tpl-grid" id="tpl-grid"></div>
+    <form method="dialog"><button class="ghost">Cancel</button></form>
+  </dialog>
+  <div id="toast" role="status"></div>
+  <script src="js/schema.js"></script>
+  <script src="js/presets.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/editor.js"></script>
+</body>
+</html>
