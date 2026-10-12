@@ -157,5 +157,63 @@
     ].join('\n');
   }
 
-  WB.content = { sanitizeValue, buildData, mergeData, setPath, describeSchema };
+  /* ---------------- Retrieval helpers (for the AI assistant) ---------------- */
+
+  const CHUNK_FIELD_CHARS = 240;
+  const MAX_CHUNKS = 400;
+
+  /** "key=value; key=value" for the plain-text fields of one object. */
+  function textSummary(fields, obj) {
+    return fields
+      .filter((f) => (f.type === 'text' || f.type === 'textarea') && obj[f.key])
+      .map((f) => `${f.key}=${String(obj[f.key]).replace(/\s+/g, ' ').slice(0, CHUNK_FIELD_CHARS)}`)
+      .join('; ');
+  }
+
+  /**
+   * Split the project into small addressable pieces: the site details, each
+   * section, and each list item (dish, review, hours row...). The AI embeds these
+   * and retrieves only the ones related to a request.
+   * Each chunk: { address: "id=<section> path=<path>", text }.
+   */
+  function chunkProject(project) {
+    const chunks = [{
+      address: 'site',
+      text: `Site details: name=${project.site.name}; tagline=${project.site.tagline}; description=${project.site.description}`,
+    }];
+
+    const walkLists = (section, fields, obj, prefix, trail) => {
+      for (const field of fields.filter((f) => f.type === 'list')) {
+        (obj[field.key] || []).forEach((item, index) => {
+          const path = `${prefix}${field.key}.${index}`;
+          const name = item[field.itemLabel] || `${field.itemName} ${index + 1}`;
+          chunks.push({
+            address: `id=${section.id} path=${path}`,
+            text: `${[...trail, name].join(' > ')}: ${textSummary(field.itemFields, item)}`,
+          });
+          walkLists(section, field.itemFields, item, `${path}.`, [...trail, name]);
+        });
+      }
+    };
+
+    for (const section of project.sections) {
+      const schema = SCHEMA[section.type];
+      const label = WB.sectionLabel(section);
+      chunks.push({
+        address: `id=${section.id}`,
+        text: `${label} section (${section.type}${section.enabled ? '' : ', hidden'}): ${textSummary(schema.fields, section.data)}`,
+      });
+      walkLists(section, schema.fields, section.data, '', [label]);
+    }
+    return chunks.slice(0, MAX_CHUNKS);
+  }
+
+  /** One line per section: id, type, label, visibility. Always shown to the model. */
+  function outline(project) {
+    return project.sections
+      .map((s) => `- id=${s.id} type=${s.type} "${WB.sectionLabel(s)}"${s.enabled ? '' : ' (hidden)'}`)
+      .join('\n');
+  }
+
+  WB.content = { sanitizeValue, buildData, mergeData, setPath, describeSchema, chunkProject, outline };
 })(window.WB);

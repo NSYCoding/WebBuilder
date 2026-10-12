@@ -7,9 +7,10 @@ contextBridge.exposeInMainWorld('desktop', {
   previewInBrowser: (html) => ipcRenderer.invoke('shell:preview', html),
   ai: {
     status: () => ipcRenderer.invoke('ai:status'),
-    setKey: (key) => ipcRenderer.invoke('ai:setKey', key),
-    clearKey: () => ipcRenderer.invoke('ai:clearKey'),
-    setModel: (modelId) => ipcRenderer.invoke('ai:setModel', modelId),
+    setSettings: (patch) => ipcRenderer.invoke('ai:setSettings', patch),
     chat: (payload) => ipcRenderer.invoke('ai:chat', payload),
+    cancel: () => ipcRenderer.invoke('ai:cancel'),
+    /** @param {(progress: {tokens: number}) => void} callback */
+    onProgress: (callback) => ipcRenderer.on('ai:progress', (_event, progress) => callback(progress)),
   },
 });
