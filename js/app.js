@@ -97,13 +97,18 @@
   function wireStatus() {
     const status = $('#status');
     store.subscribe(() => { status.textContent = 'Editing…'; });
-    store.onSaved((ok) => { status.textContent = ok ? 'Saved' : 'Could not autosave (images too large?)'; });
+    store.onSaved((ok) => { status.textContent = ok ? 'Saved' : 'Could not autosave'; });
   }
 
-  wireToolbar();
-  wireTemplates();
-  wirePanelsAndDevices();
-  wireStatus();
-  WB.preview.init($('#preview'));
-  WB.panels.show('sections');
+  async function start() {
+    await store.init(); // load the saved project before anything renders it
+    wireToolbar();
+    wireTemplates();
+    wirePanelsAndDevices();
+    wireStatus();
+    WB.preview.init($('#preview'));
+    WB.panels.show('sections');
+  }
+
+  start();
 })(window.WB);

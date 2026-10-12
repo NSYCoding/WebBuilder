@@ -17,7 +17,7 @@ npm start
 - Design tab: colours, heading/body fonts, corner radius
 - 3 starter templates (Classic Bistro, Modern Sushi Bar, Rustic Pizzeria)
 - Native file dialogs: **Export HTML** (single standalone file), **Save / Open project** (`.wbproj`), preview in the system browser
-- Autosaves to local storage
+- Autosaves to IndexedDB (restored on next launch)
 
 ## Code layout
 
@@ -32,7 +32,8 @@ Plain browser scripts (no bundler); each file attaches to a shared `window.WB` n
 | `js/site-assets.js` | CSS and scripts embedded into every generated site |
 | `js/renderer.js` | Project -> standalone HTML (all user content is escaped/sanitised here) |
 | `js/dom.js` | `h()` element helper |
-| `js/store.js` | Current project, change notifications, localStorage autosave |
+| `js/db.js` | Promise wrapper around IndexedDB |
+| `js/store.js` | Current project, change notifications, IndexedDB autosave |
 | `js/preview.js` | Live preview iframe and its postMessage protocol |
 | `js/fields.js` | Schema-driven form controls (text, image, list, ...) |
 | `js/panels.js` | Sections / Design / Site tabs |
