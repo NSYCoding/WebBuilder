@@ -1,0 +1,17 @@
+{
+  "name": "webbuilder",
+  "version": "0.1.0",
+  "description": "Desktop website builder for restaurants",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0"
+  }
+}
