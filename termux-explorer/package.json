@@ -1,0 +1,8 @@
+{
+  "name": "termux-explorer",
+  "version": "1.0.0",
+  "description": "Web file explorer for Termux that can serve folders on localhost ports and run scripts",
+  "bin": { "termux-explorer": "server.js" },
+  "scripts": { "start": "node server.js" },
+  "license": "MIT"
+}
